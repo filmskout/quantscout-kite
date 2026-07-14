@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuantScout — Agent-Payable Quant Research (Kite)</title>
+<style>
+  :root { --bg:#0b0e14; --card:#131824; --line:#232b3d; --txt:#dce3f0; --dim:#94a8bd; --acc:#4f8cff; --ok:#2fbf71; --warn:#ffb347; --bad:#ff5d6c; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--txt); font:14px/1.6 "SF Mono",ui-monospace,Menlo,monospace; padding:20px; }
+  h1 { font-size:20px; letter-spacing:.5px; }
+  h1 .k { color:var(--acc); }
+  .sub { color:var(--dim); font-size:12px; margin:4px 0 16px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:900px){ .grid{grid-template-columns:1fr} }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .card h2 { font-size:13px; color:var(--dim); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:10px; display:flex; justify-content:space-between; }
+  .badge { font-size:11px; padding:1px 8px; border-radius:10px; border:1px solid var(--line); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); }
+  .badge.warn { color:var(--warn); border-color:var(--warn); }
+  .kv { display:grid; grid-template-columns:110px 1fr; gap:2px 10px; font-size:13px; }
+  .kv b { color:var(--dim); font-weight:400; }
+  .mono { word-break:break-all; }
+  .budgetbar { height:10px; background:#0a2b1c; border-radius:5px; overflow:hidden; margin:8px 0 4px; }
+  .budgetbar i { display:block; height:100%; background:linear-gradient(90deg,var(--ok),var(--warn)); transition:width .5s; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th,td { text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); }
+  th { color:var(--dim); font-weight:400; }
+  .sim { color:var(--warn); }
+  .real { color:var(--ok); }
+  #log { max-height:220px; overflow-y:auto; font-size:12px; color:var(--dim); white-space:pre-wrap; }
+  #log .new { color:var(--txt); }
+  button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:8px 20px; font:inherit; cursor:pointer; }
+  button:disabled { opacity:.4; cursor:default; }
+  canvas { width:100%; height:150px; }
+  .best { border-left:3px solid var(--ok); padding-left:10px; margin-top:8px; font-size:13px; }
+  .comment { margin-top:8px; padding:8px 10px; background:#0e1420; border-radius:8px; font-size:12px; color:var(--dim); }
+  .wide { grid-column:1/-1; }
+</style>
+</head>
+<body>
+<h1>Quant<span class="k">Scout</span> <span style="font-size:12px;color:var(--dim)">— autonomous pay-per-data quant research agent · Kite Agent Passport</span></h1>
+<p class="sub">身份 Identity · 授权 Authorization · 支付 Payment · 审计 Audit — 全流程演示 | track: Make It Agent-Payable</p>
+
+<div class="grid">
+  <div class="card">
+    <h2>① 身份 Identity <span class="badge ok" id="idBadge">kite dev testnet</span></h2>
+    <div class="kv" id="identity">加载中…</div>
+  </div>
+
+  <div class="card">
+    <h2>② 授权 Authorization — Spending Session <span class="badge ok" id="sessBadge">-</span></h2>
+    <div class="kv" id="session">加载中…</div>
+    <div class="budgetbar"><i id="budgetFill" style="width:0%"></i></div>
+    <div style="font-size:12px;color:var(--dim)" id="budgetTxt"></div>
+  </div>
+
+  <div class="card wide">
+    <h2>③ 自主研究循环 — 付费拿数据 → 回测 → 迭代 <span><button id="startBtn" onclick="start()">▶ 启动研究 (BTCUSDT)</button></span></h2>
+    <div id="log">待启动。agent 将在授权预算内自主向 market402 购买行情数据并迭代回测,预算耗尽自动停止。</div>
+    <canvas id="chart" width="900" height="150"></canvas>
+    <div class="best" id="best" style="display:none"></div>
+    <div class="comment" id="comment" style="display:none"></div>
+  </div>
+
+  <div class="card wide">
+    <h2>④ 审计 Audit — 每笔支付流水 <span class="badge warn" id="payMode">-</span></h2>
+    <table>
+      <thead><tr><th>#</th><th>时间</th><th>用途</th><th>金额</th><th>tx</th><th>状态</th></tr></thead>
+      <tbody id="ledger"><tr><td colspan="6" style="color:var(--dim)">暂无支付</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let lastLogLen = 0;
+
+async function poll() {
+  const s = await (await fetch("api/state")).json();
+  // 身份
+  if (s.identity) {
+    const a = s.identity.agents[0] || {};
+    $("identity").innerHTML =
+      `<b>owner</b><span class="mono">${s.identity.user.email || "-"}</span>` +
+      `<b>user_id</b><span class="mono">${s.identity.user.user_id || "-"}</span>` +
+      `<b>agent</b><span class="mono">${a.type || "-"}</span>` +
+      `<b>agent_id</b><span class="mono">${a.id || "-"}</span>`;
+  }
+  // 授权
+  if (s.session) {
+    const p = s.session.delegation?.payment_policy || {};
+    $("sessBadge").textContent = s.session.status || "-";
+    $("session").innerHTML =
+      `<b>session</b><span class="mono">${s.session.id || "-"}</span>` +
+      `<b>task</b><span>${s.session.delegation?.task?.summary || "-"}</span>` +
+      `<b>单笔上限</b><span>$${p.max_amount_per_tx}</span>` +
+      `<b>总额上限</b><span>$${p.max_total_amount}</span>` +
+      (s.session.note ? `<b>note</b><span style="color:var(--warn);font-size:11px">${s.session.note}</span>` : "");
+  }
+  const pct = Math.min(100, s.budget.spent / s.budget.total * 100);
+  $("budgetFill").style.width = pct + "%";
+  $("budgetTxt").textContent = `已花 $${s.budget.spent.toFixed(2)} / $${s.budget.total.toFixed(2)} — 剩余 $${(s.budget.total - s.budget.spent).toFixed(2)}`;
+  $("payMode").textContent = "PAY_MODE=" + s.payMode;
+  // 研究日志
+  const R = s.research;
+  if (R.log.length) {
+    $("log").innerHTML = R.log.map((l, i) =>
+      `<div class="${i >= lastLogLen ? "new" : ""}">${new Date(l.ts).toLocaleTimeString()} ${l.m}</div>`).join("");
+    $("log").scrollTop = 1e9; lastLogLen = R.log.length;
+  }
+  $("startBtn").disabled = R.running;
+  if (R.best) {
+    $("best").style.display = "block";
+    $("best").innerHTML = `🏆 最优: <b>${JSON.stringify(R.best.params)}</b> — 收益 ${R.best.totalReturnPct}% | 回撤 ${R.best.maxDrawdownPct}% | Sharpe ${R.best.sharpe} | ${R.best.trades} 笔 | 买入持有 ${R.best.buyHoldReturnPct}%`;
+    drawChart(R.best.equity);
+  }
+  if (R.commentary) { $("comment").style.display = "block"; $("comment").textContent = "📋 " + R.commentary; }
+  // 流水
+  if (s.ledger.length) {
+    $("ledger").innerHTML = s.ledger.map((l) =>
+      `<tr><td>${l.seq}</td><td>${new Date(l.ts).toLocaleTimeString()}</td><td>${l.purpose}</td><td>$${l.amount}</td>` +
+      `<td class="mono ${l.simulated ? "sim" : "real"}">${(l.tx || "-").slice(0, 22)}${l.simulated ? " ⚠simulated" : " ✓on-chain"}</td>` +
+      `<td>${l.status}</td></tr>`).join("");
+  }
+}
+function drawChart(eq) {
+  const c = $("chart"), x = c.getContext("2d");
+  x.clearRect(0, 0, c.width, c.height);
+  if (!eq || eq.length < 2) return;
+  const vs = eq.map((e) => e.v), min = Math.min(...vs), max = Math.max(...vs), pad = 8;
+  x.strokeStyle = "#4f8cff"; x.lineWidth = 1.5; x.beginPath();
+  eq.forEach((e, i) => {
+    const px = pad + (i / (eq.length - 1)) * (c.width - 2 * pad);
+    const py = c.height - pad - ((e.v - min) / (max - min || 1)) * (c.height - 2 * pad);
+    i ? x.lineTo(px, py) : x.moveTo(px, py);
+  });
+  x.stroke();
+  x.strokeStyle = "#232b3d"; x.setLineDash([4, 4]); x.beginPath();
+  const y1 = c.height - pad - ((1 - min) / (max - min || 1)) * (c.height - 2 * pad);
+  x.moveTo(pad, y1); x.lineTo(c.width - pad, y1); x.stroke(); x.setLineDash([]);
+}
+async function start() { $("startBtn").disabled = true; await fetch("api/research/start?symbol=BTCUSDT", { method: "POST" }); }
+poll(); setInterval(poll, 1500);
+</script>
+</body>
+</html>

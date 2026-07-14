@@ -1,0 +1,5 @@
+.kite-passport/
+.kite-simulated-ledger.jsonl
+server.log
+node_modules/
+.env*
