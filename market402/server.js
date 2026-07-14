@@ -37,19 +37,20 @@ function klines(symbol) {
   });
 }
 
-function paymentRequirements(resource) {
+function paymentRequirements() {
+  // x402 v2 PaymentRequirements(实测对照 x402-foundation/x402 core types)
   return {
     scheme: SCHEME,
     network: NETWORK,
-    maxAmountRequired: PRICE_RAW,
-    resource,
-    description: "OHLCV daily klines, 90 bars, pay-per-request",
-    mimeType: "application/json",
+    asset: PIEUSD,
+    amount: PRICE_RAW,
     payTo: PAY_TO,
     maxTimeoutSeconds: 120,
-    asset: PIEUSD,
     extra: { name: "pieUSD", version: "1", merchantName: "market402" },
   };
+}
+function resourceInfo(url) {
+  return { url, description: "OHLCV daily klines, pay-per-request", mimeType: "application/json", serviceName: "market402" };
 }
 
 async function facilitate(path, payload, requirements) {
@@ -74,10 +75,10 @@ const server = http.createServer(async (req, res) => {
 
   if (u.pathname === "/api/klines") {
     const resource = `http://localhost:${PORT}/api/klines`;
-    const requirements = paymentRequirements(resource);
+    const requirements = paymentRequirements();
     const xPayment = req.headers["x-payment"];
     if (!xPayment) {
-      return send(402, { x402Version: 2, error: "payment required", accepts: [requirements] });
+      return send(402, { x402Version: 2, error: "payment required", resource: resourceInfo(resource), accepts: [requirements] });
     }
     let payload;
     try { payload = JSON.parse(Buffer.from(xPayment, "base64").toString("utf8")); }
@@ -86,15 +87,15 @@ const server = http.createServer(async (req, res) => {
     const verify = await facilitate("/v2/verify", payload, requirements);
     console.log("[verify]", verify.status, JSON.stringify(verify.body).slice(0, 300));
     if (!verify.ok || verify.body.isValid === false) {
-      return send(402, { x402Version: 2, error: "verification failed", detail: verify.body, accepts: [requirements] });
+      return send(402, { x402Version: 2, error: "verification failed", detail: verify.body, resource: resourceInfo(resource), accepts: [requirements] });
     }
     const settle = await facilitate("/v2/settle", payload, requirements);
     console.log("[settle]", settle.status, JSON.stringify(settle.body).slice(0, 300));
     if (!settle.ok || settle.body.success === false) {
-      return send(402, { x402Version: 2, error: "settlement failed", detail: settle.body, accepts: [requirements] });
+      return send(402, { x402Version: 2, error: "settlement failed", detail: settle.body, resource: resourceInfo(resource), accepts: [requirements] });
     }
     const symbol = (u.searchParams.get("symbol") || "BTCUSDT").toUpperCase();
-    ledger.push({ ts: Date.now(), symbol, amountRaw: PRICE_RAW, tx: settle.body.transaction || settle.body.txHash || null, network: NETWORK });
+    ledger.push({ ts: Date.now(), symbol, amountRaw: PRICE_RAW, payer: payload?.payload?.authorization?.from || null, tx: settle.body.transaction || settle.body.txHash || null, network: NETWORK });
     res.setHeader("X-Payment-Response", Buffer.from(JSON.stringify(settle.body)).toString("base64"));
     return send(200, { symbol, interval: "1d", bars: klines(symbol), paid: true, tx: settle.body.transaction || settle.body.txHash || null });
   }

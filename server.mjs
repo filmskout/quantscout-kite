@@ -58,7 +58,9 @@ async function refreshIdentity() {
     state.session = {
       id: "agent_session_019f61c4-69bd-7b61-afae-83da4144b217", status: "active",
       delegation: { payment_policy: { max_amount_per_tx: "1", max_total_amount: "5" }, task: { summary: "QuantScout: buy market data via x402 within budget" } },
-      note: "identity/session are REAL (Kite dev testnet, passkey-approved); payment execution simulated pending Kite merchant allowlist",
+      note: PAY_MODE === "eip3009"
+        ? "identity/session REAL (Kite dev testnet, passkey-approved) · payments REAL on-chain (x402 EIP-3009 → Pieverse facilitator → kite-testnet PIEUSD)"
+        : "identity/session are REAL (Kite dev testnet, passkey-approved); payment execution simulated pending Kite merchant allowlist",
     };
   }
 }
@@ -67,6 +69,21 @@ async function refreshIdentity() {
 async function paidFetch(symbol, purpose) {
   if (state.budget.spent + PRICE > state.budget.total) return null;
   let payment;
+  if (PAY_MODE === "eip3009") {
+    // 真实链路: 自签 EIP-3009 → x402 → Pieverse facilitator 链上结算(kite-testnet PIEUSD)
+    const { payAndCall } = await import(process.env.BUYER_LIB || "../x402-buyer/buyer.mjs");
+    const r = await payAndCall(`${MARKET_URL}/api/klines?symbol=${symbol}`).catch((e) => ({ paid: false, error: e.message }));
+    if (!r.paid) {
+      payment = { ts: Date.now(), seq: state.ledger.length + 1, purpose, amount: PRICE, status: "failed", error: r.error || JSON.stringify(r.data)?.slice(0, 120), simulated: false };
+      state.ledger.push(payment); return null;
+    }
+    payment = { ts: Date.now(), purpose, amount: PRICE, tx: r.data.tx, payer: r.payer, status: "settled", simulated: false,
+      explorer: r.data.tx ? `https://testnet.kitescan.ai/tx/${r.data.tx}` : null };
+    payment.seq = state.ledger.length + 1;
+    state.budget.spent = +(state.budget.spent + PRICE).toFixed(4);
+    state.ledger.push(payment);
+    return { bars: r.data.bars, payment }; // 数据来自付费响应本身
+  }
   if (PAY_MODE === "kpass") {
     const r = await kpass(["agent:session", "execute", "--url", `${MARKET_URL}/api/klines?symbol=${symbol}`, "--method", "GET"]);
     if (r.status === "error") { payment = { ts: Date.now(), purpose, amount: PRICE, status: "failed", error: r.error, simulated: false }; state.ledger.push(payment); return null; }
@@ -116,6 +133,7 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, `http://x`);
   const send = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
   if (u.pathname === "/") { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); return res.end(readFileSync(path.join(__dirname, "public", "index.html"))); }
+  if (u.pathname === "/hero.jpg") { res.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "public,max-age=86400" }); return res.end(readFileSync(path.join(__dirname, "public", "hero.jpg"))); }
   if (u.pathname === "/api/state") {
     if (!state.identity) await refreshIdentity();
     return send(200, state);

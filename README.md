@@ -12,12 +12,12 @@
 |---|---|---|
 | **Identity** | `kpass agent:register` → `quant-research-agent`, owner-bound | ✅ real (Kite dev testnet) |
 | **Authorization** | Spending session: $1/tx, $5 total, 24h TTL, approved by owner **passkey** | ✅ real (passkey-approved on `passport-web.dev.gokite.ai`) |
-| **Payment** | x402 pay-per-request to a market-data service (`market402`, our own x402 merchant) | ⚠️ simulated pending Kite merchant allowlisting (see below) |
+| **Payment** | x402 pay-per-request to `market402` (our x402 merchant): self-signed **EIP-3009** → **Pieverse facilitator** `/v2/verify`→`/v2/settle` → on-chain PIEUSD transfer | ✅ **REAL on-chain** (kite-testnet `eip155:2368`, every tx linked to kitescan) |
 | **Audit** | Per-payment ledger (seq/purpose/amount/tx/status) + session usage from Kite backend | ✅ real session usage + local ledger |
 
-### Why payment is currently simulated (and what's real)
+### How payments are real without Kite merchant allowlisting
 
-`kpass agent:session execute` only pays **allowlisted merchants** in Kite's service catalog (error: `payment_target_forbidden / sandbox_merchant_not_allowlisted` — verified live). Self-registered services are not yet self-serve listable; we have requested partner allowlisting from the Kite team. Everything else — signup, passkey, agent registration, session creation/approval, budget accounting, testnet faucet (5 PIEUSD received, [tx on kitescan](https://testnet.kitescan.ai/tx/0x63c5bea043cb0376e4d17aaf0c717b52580145cd17a730b94509915236417ce0)) — runs **live against Kite dev testnet**. The payment code path is fully implemented (`PAY_MODE=kpass`); flip one env var once allowlisted.
+`kpass agent:session execute` only pays **allowlisted merchants** in Kite's catalog (verified: `payment_target_forbidden`). So we implemented the x402 v2 protocol directly: the agent holds its own EVM wallet (funded by Kite's testnet faucet with PIEUSD), **signs EIP-3009 `transferWithAuthorization`** (EIP-712, domain `pieUSD/1/2368`), sends it as `X-Payment`; the merchant settles via the **Pieverse facilitator** (`/v2/verify` → `/v2/settle`), which executes the transfer **on Kite testnet**. Every payment in the demo is a real block-confirmed transaction — click any tx hash in the audit panel to open it on [testnet.kitescan.ai](https://testnet.kitescan.ai). Identity/authorization (Passport signup, passkey-approved spending session) also run live against Kite dev testnet. A `PAY_MODE=kpass` path is also implemented for when Kite allowlists us into the official catalog.
 
 ## Architecture
 
@@ -49,7 +49,9 @@ node --version   # v24+
 PAY_MODE=hybrid PORT=4021 node server.mjs
 # fully offline demo:
 PAY_MODE=simulated PORT=4021 node server.mjs
-# real payment (requires Kite merchant allowlist):
+# REAL on-chain payment (default in production demo; needs ../x402-buyer with a funded key):
+PAY_MODE=eip3009 MARKET_URL=http://127.0.0.1:4020 PORT=4021 node server.mjs
+# via Kite catalog (once allowlisted):
 PAY_MODE=kpass MARKET_URL=<public market402 URL> PORT=4021 node server.mjs
 
 open http://localhost:4021   # click ▶ 启动研究

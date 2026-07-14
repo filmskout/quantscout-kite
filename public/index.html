@@ -41,6 +41,8 @@
 <body>
 <h1>Quant<span class="k">Scout</span> <span style="font-size:12px;color:var(--dim)">— autonomous pay-per-data quant research agent · Kite Agent Passport</span></h1>
 <p class="sub">身份 Identity · 授权 Authorization · 支付 Payment · 审计 Audit — 全流程演示 | track: Make It Agent-Payable</p>
+<div style="border-radius:12px;overflow:hidden;border:1px solid var(--line);margin:0 0 14px;position:relative"><img src="hero.jpg" style="width:100%;height:150px;object-fit:cover;display:block;opacity:.85"><span style="position:absolute;right:10px;bottom:8px;font-size:10px;color:#cfe;background:rgba(0,0,0,.5);padding:2px 8px;border-radius:8px">🎨 本图由姊妹项目 PayGen 通过 x402 真实链上支付购买生成</span></div>
+
 
 <div class="grid">
   <div class="card">
@@ -64,7 +66,7 @@
   </div>
 
   <div class="card wide">
-    <h2>④ 审计 Audit — 每笔支付流水 <span class="badge warn" id="payMode">-</span></h2>
+    <h2>④ 审计 Audit — 每笔支付流水 <span class="badge ok" id="payMode">-</span></h2>
     <table>
       <thead><tr><th>#</th><th>时间</th><th>用途</th><th>金额</th><th>tx</th><th>状态</th></tr></thead>
       <tbody id="ledger"><tr><td colspan="6" style="color:var(--dim)">暂无支付</td></tr></tbody>
@@ -120,7 +122,7 @@ async function poll() {
   if (s.ledger.length) {
     $("ledger").innerHTML = s.ledger.map((l) =>
       `<tr><td>${l.seq}</td><td>${new Date(l.ts).toLocaleTimeString()}</td><td>${l.purpose}</td><td>$${l.amount}</td>` +
-      `<td class="mono ${l.simulated ? "sim" : "real"}">${(l.tx || "-").slice(0, 22)}${l.simulated ? " ⚠simulated" : " ✓on-chain"}</td>` +
+      `<td class="mono ${l.simulated ? "sim" : "real"}">${l.explorer ? `<a href="${l.explorer}" target="_blank" style="color:var(--ok)">${(l.tx || "-").slice(0, 18)}…</a>` : (l.tx || "-").slice(0, 22)}${l.simulated ? " ⚠simulated" : " ✓on-chain"}</td>` +
       `<td>${l.status}</td></tr>`).join("");
   }
 }
