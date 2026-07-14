@@ -37,7 +37,7 @@
 - `server.mjs` — zero-dependency Node server: UI + API + autonomous research loop. Drives `kpass` via child_process (`--output json --no-interactive`).
 - `lib/backtest.ts` — pure-TS backtest kernel (Node 24 native TS): SMA-cross & RSI strategies; total/annualized return, max drawdown, Sharpe, win-rate, equity curve.
 - `data/*.json` — 360 daily bars for BTC/ETH/SOL (OKX public API, cached for reproducibility & rate-limit resilience).
-- `../../kite-testnet/market402/server.js` — our x402 **merchant** (also the seed of sister project PayGen): returns HTTP 402 with payment terms (`eip155:2368`, PIEUSD `0x3812...621A`), verifies `X-Payment` via Pieverse facilitator `/v2/verify` → `/v2/settle`.
+- `market402/server.js` — our x402 **merchant** (also the seed of sister project PayGen): returns HTTP 402 with payment terms (`eip155:2368`, PIEUSD `0x3812...621A`), verifies `X-Payment` via Pieverse facilitator `/v2/verify` → `/v2/settle`.
 
 ## Run
 
