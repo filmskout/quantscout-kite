@@ -77,10 +77,11 @@ async function paidFetch(symbol, purpose) {
       payment = { ts: Date.now(), seq: state.ledger.length + 1, purpose, amount: PRICE, status: "failed", error: r.error || JSON.stringify(r.data)?.slice(0, 120), simulated: false };
       state.ledger.push(payment); return null;
     }
-    payment = { ts: Date.now(), purpose, amount: PRICE, tx: r.data.tx, payer: r.payer, status: "settled", simulated: false,
+    const paid = parseFloat(r.amountHuman || PRICE); // 动态市场价,以实际成交为准
+    payment = { ts: Date.now(), purpose, amount: paid, tx: r.data.tx, payer: r.payer, status: "settled", simulated: false,
       explorer: r.data.tx ? `https://testnet.kitescan.ai/tx/${r.data.tx}` : null };
     payment.seq = state.ledger.length + 1;
-    state.budget.spent = +(state.budget.spent + PRICE).toFixed(4);
+    state.budget.spent = +(state.budget.spent + paid).toFixed(4);
     state.ledger.push(payment);
     return { bars: r.data.bars, payment }; // 数据来自付费响应本身
   }

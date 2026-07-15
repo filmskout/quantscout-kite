@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>QuantScout — Agent-Payable Quant Research (Kite)</title>
 <style>
-  :root { --bg:#0b0e14; --card:#131824; --line:#232b3d; --txt:#dce3f0; --dim:#94a8bd; --acc:#4f8cff; --ok:#2fbf71; --warn:#ffb347; --bad:#ff5d6c; }
+  :root { --stripe:linear-gradient(90deg,#4f8cff,#25e0c9); --bg:#0b0e14; --card:#131824; --line:#232b3d; --txt:#dce3f0; --dim:#94a8bd; --acc:#4f8cff; --ok:#2fbf71; --warn:#ffb347; --bad:#ff5d6c; }
   * { box-sizing:border-box; margin:0; }
   body { background:var(--bg); color:var(--txt); font:14px/1.6 "SF Mono",ui-monospace,Menlo,monospace; padding:20px; }
   h1 { font-size:20px; letter-spacing:.5px; }
@@ -36,14 +36,37 @@
   .best { border-left:3px solid var(--ok); padding-left:10px; margin-top:8px; font-size:13px; }
   .comment { margin-top:8px; padding:8px 10px; background:#0e1420; border-radius:8px; font-size:12px; color:var(--dim); }
   .wide { grid-column:1/-1; }
+
+  /* 系列顶部条 + 移动端适配 */
+  .series-stripe { height:4px; border-radius:2px; margin:-20px -20px 14px; background:var(--stripe); }
+  .series-nav { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 12px; }
+  .series-nav a { font-size:11px; padding:3px 10px; border-radius:12px; border:1px solid var(--line); color:var(--dim); text-decoration:none; }
+  .series-nav a.cur { border-color:var(--acc); color:var(--acc); font-weight:700; }
+  img.zoomable { cursor:zoom-in; }
+  #lightbox { display:none; position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:99; cursor:zoom-out; align-items:center; justify-content:center; }
+  #lightbox.on { display:flex; }
+  #lightbox img { max-width:94vw; max-height:92vh; border-radius:10px; }
+  @media (max-width:700px) {
+    body { padding:10px; font-size:13px; }
+    h1 { font-size:17px; } h1 span:not(.k) { display:block; margin-top:2px; }
+    .kv { grid-template-columns:86px 1fr; font-size:11.5px; }
+    .card { padding:10px 12px; }
+    .card h2 { flex-wrap:wrap; gap:4px; }
+    table { font-size:10.5px; display:block; overflow-x:auto; white-space:nowrap; }
+    .hero-img { height:90px !important; }
+    button { padding:8px 12px; font-size:12.5px; }
+    .series-stripe { margin:-10px -10px 10px; }
+  }
 </style>
 </head>
 <body>
+<div class="series-stripe"></div>
 <h1>Quant<span class="k">Scout</span> <span style="font-size:12px;color:var(--dim)">— autonomous pay-per-data quant research agent · Kite Agent Passport</span></h1>
 <p class="sub">身份 Identity · 授权 Authorization · 支付 Payment · 审计 Audit — 全流程演示 | track: Make It Agent-Payable</p>
-<div style="border-radius:12px;overflow:hidden;border:1px solid var(--line);margin:0 0 14px;position:relative"><img src="hero.jpg" style="width:100%;height:150px;object-fit:cover;display:block;opacity:.85"><span style="position:absolute;right:10px;bottom:8px;font-size:10px;color:#cfe;background:rgba(0,0,0,.5);padding:2px 8px;border-radius:8px">🎨 本图由姊妹项目 PayGen 通过 x402 真实链上支付购买生成</span></div>
+<div style="border-radius:12px;overflow:hidden;border:1px solid var(--line);margin:0 0 14px;position:relative"><img src="hero.jpg" class="zoomable hero-img" style="width:100%;height:150px;object-fit:cover;display:block;opacity:.85"><span style="position:absolute;right:10px;bottom:8px;font-size:10px;color:#cfe;background:rgba(0,0,0,.5);padding:2px 8px;border-radius:8px">🎨 本图由姊妹项目 PayGen 通过 x402 真实链上支付购买生成</span></div>
 
 
+<div class="series-nav"><a href="../quantscout/" class="cur">① QuantScout·买家</a><a href="../paygen/" class="">② PayGen·商户</a><a href="../agentledger/" class="">③ AgentLedger·所有者</a></div>
 <div class="grid">
   <div class="card">
     <h2>① 身份 Identity <span class="badge ok" id="idBadge">kite dev testnet</span></h2>
@@ -144,6 +167,11 @@ function drawChart(eq) {
 }
 async function start() { $("startBtn").disabled = true; await fetch("api/research/start?symbol=BTCUSDT", { method: "POST" }); }
 poll(); setInterval(poll, 1500);
+</script>
+<div id="lightbox" onclick="this.classList.remove('on')"><img id="lbimg" src=""></div>
+<script>
+function lb(src){document.getElementById('lbimg').src=src;document.getElementById('lightbox').classList.add('on');}
+document.addEventListener('click',(e)=>{const t=e.target;if(t.tagName==='IMG'&&t.classList.contains('zoomable')&&!t.closest('#lightbox')){lb(t.src);}});
 </script>
 </body>
 </html>
